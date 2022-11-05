@@ -14,7 +14,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <string.h>
 #include <signal.h>
 #include <fcntl.h>
 #include "command.h"
@@ -144,40 +143,79 @@ Command::execute()
 
 	// Print contents of Command data structure
 	print();
-	// Save default input, output, and error
 	Command command = Command::_currentCommand;
-
-	int pid = fork();
-	if(pid < 0){
-		perror("couldn't fork");
-		exit(pid);
-	}
-	if(pid == 0){
+	if (command._numberOfSimpleCommands == 1){
+		int pid = fork();
+		if(pid < 0){
+			perror("couldn't fork");
+			exit(pid);
+		}
+		if(!pid){
+			int in =  dup( 0 );
+			int out = dup( 1 );
+			int err = dup( 2 );
+			if (command._outFile){
+				out = open(command._outFile,O_RDWR | (command._outMode==1 ? O_TRUNC : O_APPEND) | O_CREAT,S_IRWXU | S_IRWXG | S_IRWXO);
+			} 
+			if (command._errFile){
+				err = open(command._errFile,O_RDWR | (command._errMode==1 ? O_TRUNC : O_APPEND) | O_CREAT,S_IRWXG | S_IRWXO | S_IRWXU);
+			} 
+			if (command._inputFile){
+				in = open(command._inputFile,O_RDONLY,S_IRWXG | S_IRWXO | S_IRWXU);
+			}
+			dup2(in,0);
+			dup2(out,1);
+			dup2(err,2);
+			close(in);
+			close(out);
+			close(err);
+			printf("calling execvp....");
+			execvp(command._simpleCommands[0]->_arguments[0],command._simpleCommands[0]->_arguments);
+			perror("couldn't execute command");
+			exit(2);
+		}
+		if (!command._background){
+			waitpid(pid,nullptr,0);
+		}
+	} else {
 		int in =  dup( 0 );
-		int out = dup( 1 );
 		int err = dup( 2 );
-		if (command._outFile){
-			out = open(command._outFile,O_RDWR | (command._outMode==1 ? O_TRUNC : O_APPEND) | O_CREAT,S_IRWXU | S_IRWXG | S_IRWXO);
-		} 
-		if (command._errFile){
-			err = open(command._errFile,O_RDWR | (command._errMode==1 ? O_TRUNC : O_APPEND) | O_CREAT,S_IRWXG | S_IRWXO | S_IRWXU);
-		} 
+		// int out = dup( 1 );
 		if (command._inputFile){
 			in = open(command._inputFile,O_RDONLY,S_IRWXG | S_IRWXO | S_IRWXU);
 		}
-		dup2(in,0);
-		dup2(out,1);
-		dup2(err,2);
-		close(in);
-		close(out);
-		close(err);
-		printf("calling execvp....");
-		execvp(command._simpleCommands[0]->_arguments[0],command._simpleCommands[0]->_arguments);
-		perror("couldn't execute command");
-		exit(2);
-	}
-	if (!command._background){
-		waitpid(pid,nullptr,0);
+		int pip[2];
+		int out;
+		int pid;
+		for (int i = 0; i < command._numberOfSimpleCommands; i++)
+		{
+			if(i == command._numberOfSimpleCommands - 1){
+				out = (command._outFile) ? open(command._outFile,O_RDWR | (command._outMode==1 ? O_TRUNC : O_APPEND) | O_CREAT,S_IRWXU | S_IRWXG | S_IRWXO) : dup(1);
+				err = (command._errFile) ? open(command._errFile,O_RDWR | (command._errMode==1 ? O_TRUNC : O_APPEND) | O_CREAT,S_IRWXG | S_IRWXO | S_IRWXU) : dup(2);
+			} else {
+				pipe(pip);
+				out = pip[1];
+			}
+			pid = fork();
+			if (!pid){
+				dup2(in,0);
+				dup2(out,1);
+				dup2(err,2);
+				close(in);
+				close(out);
+				close(err);
+				printf("calling execvp....");
+				execvp(command._simpleCommands[i]->_arguments[0],command._simpleCommands[i]->_arguments);
+				perror("couldn't execute command");
+				exit(2);
+			}
+			close(in);
+			close(out);
+			in = pip[0];
+		}
+		if (!command._background){
+			waitpid(pid,nullptr,0);
+		}
 	}
 	// Clear to prepare for next command
 	clear();
