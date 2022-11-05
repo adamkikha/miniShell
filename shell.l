@@ -22,10 +22,38 @@
 
 [ \t] 	{
 		/* Discard spaces and tabs */
-     	}	
+     	}
+
+"exit"  {
+		return EXIT;
+	}
+
+"2>>" 	{
+		return TWOGREATGREAT;
+	}
+
+">>" 	{
+		return GREATGREAT;
+	}
+
+"2>" 	{
+		return TWOGREAT;
+	}
 
 ">" 	{
 		return GREAT;
+	}
+
+"<" 	{
+		return LESS;
+	}
+
+"&" 	{
+		return AMPERSAND;
+	}
+
+"|" 	{
+		return PIPE;
 	}
 
 [^ \t\n][^ \t\n]*  {
@@ -38,6 +66,5 @@
 		/* Invalid character in input */
 		return NOTOKEN;
 	}
-
 %%
-	
+%%

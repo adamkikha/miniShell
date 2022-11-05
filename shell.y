@@ -1,4 +1,3 @@
-
 /*
  * CS-413 Spring 98
  * shell.y: parser for shell
@@ -10,48 +9,62 @@
  * you must extend it to understand the complete shell grammar
  *
  */
-
-%token	<string_val> WORD
-
-%token 	NOTOKEN GREAT NEWLINE 
-
-%union	{
-		char   *string_val;
-	}
-
 %{
+#define yylex yylex
+#include <stdio.h>
+#include "command.h"
 extern "C" 
 {
 	int yylex();
 	void yyerror (char const *s);
 }
-#define yylex yylex
-#include <stdio.h>
-#include "command.h"
 %}
 
+%token	<string_val> WORD
+
+%token 	NOTOKEN GREAT TWOGREAT TWOGREATGREAT GREATGREAT LESS AMPERSAND PIPE NEWLINE EXIT
+
+%union	{
+		char   *string_val;
+	}
 %%
 
 goal:	
 	commands
+	| goal commands
 	;
 
 commands: 
-	command
-	| commands command 
-	;
-
-command: simple_command
-        ;
-
-simple_command:	
-	command_and_args iomodifier_opt NEWLINE {
+	command AMPERSAND NEWLINE {
+		printf("   Yacc: Execute command\n");
+		Command::_currentCommand._background = 1;
+		Command::_currentCommand.execute();
+	}
+	| command NEWLINE {
 		printf("   Yacc: Execute command\n");
 		Command::_currentCommand.execute();
 	}
+	;
+
+command: 
+	command iomodifier_opt
+	| full_command
+    ;
+
+full_command:	
+	EXIT {
+		return 0;
+	}
+	| simple_command
 	| NEWLINE 
 	| error NEWLINE { yyerrok; }
 	;
+
+simple_command:
+	simple_command PIPE command_and_args {
+	}
+	| command_and_args
+	;	
 
 command_and_args:
 	command_word arg_list {
@@ -68,7 +81,6 @@ arg_list:
 argument:
 	WORD {
                printf("   Yacc: insert argument \"%s\"\n", $1);
-
 	       Command::_currentSimpleCommand->insertArgument( $1 );\
 	}
 	;
@@ -76,18 +88,36 @@ argument:
 command_word:
 	WORD {
                printf("   Yacc: insert command \"%s\"\n", $1);
-	       
 	       Command::_currentSimpleCommand = new SimpleCommand();
 	       Command::_currentSimpleCommand->insertArgument( $1 );
 	}
 	;
 
 iomodifier_opt:
-	GREAT WORD {
+	TWOGREATGREAT WORD {
+		printf("   Yacc: append error \"%s\"\n", $2);
+		Command::_currentCommand._errFile = $2;
+		Command::_currentCommand._outMode = 2;
+	}
+	| GREATGREAT WORD {
+		printf("   Yacc: append output \"%s\"\n", $2);
+		Command::_currentCommand._outFile = $2;
+		Command::_currentCommand._outMode = 2;
+	}
+	| TWOGREAT WORD {
+		printf("   Yacc: insert error \"%s\"\n", $2);
+		Command::_currentCommand._errFile = $2;
+		Command::_currentCommand._outMode = 1;
+	}
+	| GREAT WORD {
 		printf("   Yacc: insert output \"%s\"\n", $2);
 		Command::_currentCommand._outFile = $2;
+		Command::_currentCommand._outMode = 1;
 	}
-	| /* can be empty */ 
+	| LESS WORD {
+		printf("   Yacc: insert input \"%s\"\n", $2);
+		Command::_currentCommand._inputFile = $2;
+	}
 	;
 
 %%
@@ -99,6 +129,7 @@ yyerror(const char * s)
 }
 
 #if 0
+int
 main()
 {
 	yyparse();

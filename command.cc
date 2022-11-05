@@ -16,7 +16,6 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <signal.h>
-
 #include "command.h"
 
 SimpleCommand::SimpleCommand()
@@ -54,6 +53,7 @@ Command::Command()
 
 	_numberOfSimpleCommands = 0;
 	_outFile = 0;
+	_outMode = 0;
 	_inputFile = 0;
 	_errFile = 0;
 	_background = 0;
@@ -100,6 +100,7 @@ Command:: clear()
 	_outFile = 0;
 	_inputFile = 0;
 	_errFile = 0;
+	_outMode = 0;
 	_background = 0;
 }
 
@@ -113,16 +114,16 @@ Command::print()
 	printf("  --- ----------------------------------------------------------\n");
 	
 	for ( int i = 0; i < _numberOfSimpleCommands; i++ ) {
-		printf("  %-3d ", i );
+		printf("\n  %-3d ", i );
 		for ( int j = 0; j < _simpleCommands[i]->_numberOfArguments; j++ ) {
 			printf("\"%s\" \t", _simpleCommands[i]->_arguments[ j ] );
 		}
 	}
 
 	printf( "\n\n" );
-	printf( "  Output       Input        Error        Background\n" );
-	printf( "  ------------ ------------ ------------ ------------\n" );
-	printf( "  %-12s %-12s %-12s %-12s\n", _outFile?_outFile:"default",
+	printf( "  Output       Mode        Input        Error        Background\n" );
+	printf( "  ------------ ------------ ------------ ------------ ------------\n" );
+	printf( "  %-12s %-12s %-12s %-12s %-12s\n", _outFile?_outFile:"default",_outMode? (_outMode==1? "create":"append"):"None",
 		_inputFile?_inputFile:"default", _errFile?_errFile:"default",
 		_background?"YES":"NO");
 	printf( "\n\n" );
@@ -174,4 +175,3 @@ main()
 	yyparse();
 	return 0;
 }
-
