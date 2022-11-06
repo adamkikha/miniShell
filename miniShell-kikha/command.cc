@@ -16,6 +16,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <cstring>
+#include <time.h>
 #include "command.h"
 
 SimpleCommand::SimpleCommand()
@@ -140,15 +142,30 @@ Command::execute()
 		prompt();
 		return;
 	}
-
 	// Print contents of Command data structure
 	print();
+	signal(SIGCHLD,Command::log);
 	Command command = Command::_currentCommand;
+
 	if (command._numberOfSimpleCommands == 1){
+
+		// handling for cd command
+		if(!strcmp(command._simpleCommands[0]->_arguments[0],"cd")){
+			if(command._simpleCommands[0]->_arguments[1]){
+				chdir(command._simpleCommands[0]->_arguments[1]);
+				printf("current directory: %s\n",get_current_dir_name());
+			} else {
+				chdir("/home");
+				printf("current directory: /home\n");
+			}
+			clear();
+			prompt();
+			return;
+		}
 		int pid = fork();
 		if(pid < 0){
 			perror("couldn't fork");
-			exit(pid);
+			exit(2);
 		}
 		if(!pid){
 			int in =  dup( 0 );
@@ -169,7 +186,6 @@ Command::execute()
 			close(in);
 			close(out);
 			close(err);
-			printf("calling execvp....");
 			execvp(command._simpleCommands[0]->_arguments[0],command._simpleCommands[0]->_arguments);
 			perror("couldn't execute command");
 			exit(2);
@@ -180,7 +196,6 @@ Command::execute()
 	} else {
 		int in =  dup( 0 );
 		int err = dup( 2 );
-		// int out = dup( 1 );
 		if (command._inputFile){
 			in = open(command._inputFile,O_RDONLY,S_IRWXG | S_IRWXO | S_IRWXU);
 		}
@@ -197,6 +212,10 @@ Command::execute()
 				out = pip[1];
 			}
 			pid = fork();
+			if(pid < 0){
+				perror("couldn't fork");
+				exit(2);
+			}
 			if (!pid){
 				dup2(in,0);
 				dup2(out,1);
@@ -204,7 +223,6 @@ Command::execute()
 				close(in);
 				close(out);
 				close(err);
-				printf("calling execvp....");
 				execvp(command._simpleCommands[i]->_arguments[0],command._simpleCommands[i]->_arguments);
 				perror("couldn't execute command");
 				exit(2);
@@ -231,6 +249,15 @@ Command::prompt()
 {
 	printf("myshell>");
 	fflush(stdout);
+}
+
+void
+Command::log(int signum){
+	FILE *file = fopen("log","a+");
+	pid_t pid = wait(nullptr);
+	time_t t= time(NULL);
+	fprintf(file, "process %d was terminated at %s\n",pid,ctime(&t));
+	fflush(file);
 }
 
 Command Command::_currentCommand;
