@@ -254,10 +254,9 @@ Command::prompt()
 void
 Command::log(int signum){
 	FILE *file = fopen("log","a+");
-	pid_t pid = wait(nullptr);
 	time_t t= time(NULL);
-	fprintf(file, "process %d was terminated at %s\n",pid,ctime(&t));
-	fflush(file);
+	fprintf(file, "Process terminated at %s\n",,ctime(&t));
+	fclose(file);
 }
 
 Command Command::_currentCommand;
